@@ -109,7 +109,7 @@ input[type="file"] {
     background: #fff9;
     height: 5px;
     overflow: hidden;
-    border-radius: 4px;
+    border-radius: 100px;
     box-shadow: 0 0 16px #0004;
     margin: 10px 0;
     transition: height 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -123,7 +123,7 @@ input[type="file"] {
     width: 0%;
     height: 100%;
     background: #fff;
-    border-radius: 4px;
+    border-radius: 100px;
     /* box-shadow: 0 0 3px #0009; */
 }
 
