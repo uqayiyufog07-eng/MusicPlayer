@@ -168,6 +168,10 @@ p {
     transform: scale(1);
 }
 
+.controls .pause {
+    display: none;
+}
+
 .controls div:hover {
     filter: brightness(0.9);
 }
