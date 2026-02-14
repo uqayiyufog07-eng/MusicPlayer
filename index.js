@@ -22,7 +22,7 @@ let called = false;
 
 // 常量
 const LINE_HEIGHT = 20;
-const LYRICS_OFFSET = window.innerHeight /3;
+const LYRICS_OFFSET = window.innerHeight / 3.5;
 
 let lastLyric = -1
 /*
@@ -46,7 +46,7 @@ window.addEventListener("resize", () => {
 mainDivScalePosition(width, height);
 */
 let bgImg = new Image();
-// bgImg.src = "./default.svg";
+bgImg.src = "./default.svg";
 let playing = false;
 let isDragging = false;
 let lrcData;
@@ -87,8 +87,8 @@ audioPlayer.addEventListener("loadedmetadata", () => {
         if (!lrcLoaded) {
             width = 325;
             height = 437;
-           // window.dispatchEvent(new Event("resize"));
-           // mainDiv.style.marginLeft = "0";
+            // window.dispatchEvent(new Event("resize"));
+            // mainDiv.style.marginLeft = "0";
         }
         playBtn.click();
     } else {
@@ -96,70 +96,91 @@ audioPlayer.addEventListener("loadedmetadata", () => {
     }
 });
 
-audioFileInput.addEventListener("change", (event) => {
+audioFileInput.addEventListener("change", async (event) => {
     const files = event.target.files;
-    disableLyric();
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+    if (files.length === 0) return;
+
+    for (const file of files) {
         const fileURL = URL.createObjectURL(file);
-        console.log(file.name);
 
         if (file.type.startsWith('image/')) {
             bgImg.src = fileURL;
             imageLoaded = true;
-        } else if (file.type.startsWith('audio/')) {
+        }
+
+        else if (file.type.startsWith('audio/')) {
             audioPlayer.src = fileURL;
-
-            let filename = file.name.split('.')[0];
-            if (filename.length > 30) {
-                filename = filename.substring(0, 30) + "...";
-            }
-            audioName.textContent = filename;
             audioLoaded = true;
-        } else if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith(".lrc")) {
-            reader = new FileReader();
-            reader.onload = function (e) {
-                enableLyric();
-                const buffer = e.target.result;
-                // 常见编码检测顺序：UTF-8 > GBK > Big5 > Shift_JIS
-                const encodings = ['utf-8', 'gbk', 'big5', 'shift_jis'];
-                let decodedText = '';
+            let filename = file.name.replace(/\.[^/.]+$/, "");
+            audioName.textContent = filename.length > 30 ? filename.substring(0, 30) + "..." : filename;
 
-                for (const encoding of encodings) {
-                    try {
-                        const decoder = new TextDecoder(encoding, { fatal: true });
-                        decodedText = decoder.decode(new Uint8Array(buffer));
-                        break; // 解码成功则退出循环
-                    } catch (e) {
-                        continue; // 尝试下一种编码
+            jsmediatags.read(file, {
+                onSuccess: function (tag) {
+                    const tags = tag.tags;
+
+                    if (tags.picture) {
+                        const { data, format } = tags.picture;
+                        let base64String = "";
+                        for (let i = 0; i < data.length; i++) {
+                            base64String += String.fromCharCode(data[i]);
+                        }
+                        bgImg.src = `data:${format};base64,${window.btoa(base64String)}`;
+                        imageLoaded = true;
                     }
-                }
 
-                if (!decodedText) {
-                    // 所有编码尝试失败，使用默认UTF-8并替换非法字符
-                    decodedText = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buffer));
+                    if (tags.lyrics && tags.lyrics.lyrics) {
+                        processLrcText(tags.lyrics.lyrics);
+                    }
+                },
+                onError: function (error) {
+                    console.log(error.type, error.info);
                 }
+            });
+        }
 
-                lrcData = decodedText;
-                let parsedData = parseLrc(lrcData);
-                lyrics = parsedData.lyrics;
-                allTimes = parsedData.allTimes;
-                lyricsElement = document.querySelector(".lyrics");
-                lyricsElement.innerHTML = "";
-                //lyricsElement.innerHTML = lyrics.map(line => `<p data-text="${line.text}">${line.text}</p>`).join('');
-                for (let i = 0; i < lyrics.length; i++) {
-                    lyricsElement.appendChild(lyrics[i].ele)
-                }
-                UpdateLyricsLayout(0,lyrics,0)
-                for (let i = 0; i < lyrics.length; i++) {
-                    lyrics[i].ele.style.transition = "transform 0.7s cubic-bezier(.19,.11,0,1),color 0.5s ease-in-out";
-                }
+        else if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith(".lrc")) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const buffer = e.target.result;
+                const decodedText = decodeBuffer(buffer);
+                processLrcText(decodedText);
             };
             reader.readAsArrayBuffer(file);
-            lrcLoaded = true;
         }
     }
 });
+
+function processLrcText(text) {
+    enableLyric();
+    lrcData = text;
+    let parsedData = parseLrc(lrcData);
+    lyrics = parsedData.lyrics;
+    allTimes = parsedData.allTimes;
+
+    lyricsElement = document.querySelector(".lyrics");
+    lyricsElement.innerHTML = "";
+
+    for (let i = 0; i < lyrics.length; i++) {
+        lyricsElement.appendChild(lyrics[i].ele);
+    }
+
+    UpdateLyricsLayout(0, lyrics, 0);
+    for (let i = 0; i < lyrics.length; i++) {
+        lyrics[i].ele.style.transition = "all 0.7s cubic-bezier(.19,.11,0,1)";
+    }
+    lrcLoaded = true;
+}
+
+function decodeBuffer(buffer) {
+    const encodings = ['utf-8', 'gbk', 'big5', 'shift_jis'];
+    for (const encoding of encodings) {
+        try {
+            const decoder = new TextDecoder(encoding, { fatal: true });
+            return decoder.decode(new Uint8Array(buffer));
+        } catch (e) { continue; }
+    }
+    return new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(buffer));
+}
 
 function disableLyric() {
     rightContent.style.display = "none";
@@ -195,7 +216,7 @@ audioPlayer.addEventListener("timeupdate", () => {
         endTime.textContent = `-${formatTime(audioPlayer.duration - audioPlayer.currentTime)}`;
         // 歌词触发计算
         const cTime = audioPlayer.currentTime;
-        
+
         let lList = [];
         for (let i = 0; i < lyrics.length; i++) {
             if (cTime >= lyrics[i].time) {
@@ -204,10 +225,10 @@ audioPlayer.addEventListener("timeupdate", () => {
         }
         if (lList.length === 0) return;
         if (lastLyric !== lList.length - 1) {
-           
-            UpdateLyricsLayout(lList.length - 1,lyrics,1);
+
+            UpdateLyricsLayout(lList.length - 1, lyrics, 1);
             console.log(lList[lList.length - 1].text);
-            
+
             lastLyric = lList.length - 1
         }
 
@@ -421,41 +442,39 @@ function getDominantColors(imageData, colorCount = 4, minColorDistance = 60) {
     const { width, height } = imageData;
     const regionColors = [];
     const dominantColors = [];
-    
+
     const halfWidth = Math.floor(width / 2);
     const halfHeight = Math.floor(height / 2);
-    const step = 5; // 缩小步长提高采样精度
-    
+    const step = 5;
+
     const regions = [
         { x1: 0, y1: 0, x2: halfWidth, y2: halfHeight },
         { x1: halfWidth, y1: 0, x2: width, y2: halfHeight },
         { x1: 0, y1: halfHeight, x2: halfWidth, y2: height },
         { x1: halfWidth, y1: halfHeight, x2: width, y2: height }
     ];
-    
+
     regions.forEach(region => {
         let totalR = 0, totalG = 0, totalB = 0, pixelCount = 0;
         for (let y = region.y1; y < region.y2; y += step) {
             for (let x = region.x1; x < region.x2; x += step) {
                 const i = (y * width + x) * 4;
-                totalR += pixels[i]; totalG += pixels[i+1]; totalB += pixels[i+2];
+                totalR += pixels[i]; totalG += pixels[i + 1]; totalB += pixels[i + 2];
                 pixelCount++;
             }
         }
         if (pixelCount > 0) {
-            regionColors.push([Math.round(totalR/pixelCount), Math.round(totalG/pixelCount), Math.round(totalB/pixelCount)]);
+            regionColors.push([Math.round(totalR / pixelCount), Math.round(totalG / pixelCount), Math.round(totalB / pixelCount)]);
         }
     });
 
-    // 去重逻辑
     regionColors.forEach(([r, g, b]) => {
         const isUnique = dominantColors.every(([er, eg, eb]) => {
-            return Math.sqrt((r-er)**2 + (g-eg)**2 + (b-eb)**2) >= minColorDistance;
+            return Math.sqrt((r - er) ** 2 + (g - eg) ** 2 + (b - eb) ** 2) >= minColorDistance;
         });
         if (isUnique) dominantColors.push([r, g, b]);
     });
 
-    // 补齐颜色：如果提取的不够 4 个，循环填充
     while (dominantColors.length < colorCount) {
         dominantColors.push(dominantColors[dominantColors.length % dominantColors.length] || [128, 128, 128]);
     }
@@ -470,13 +489,13 @@ class Slice {
         this.index = index; // 0, 1, 2, 3 对应四个象限
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
-        
+
         // 随机初始角度和旋转速度
         this.angle = Math.random() * Math.PI * 2;
         this.velocity = (Math.random() - 0.5) * 0.005; // 旋转速度，控制流动的快慢
-        
+
         // 放大倍数，确保旋转时不会露出切片边缘
-        this.scale = 2.5; 
+        this.scale = 1;
     }
 
     update() {
@@ -504,7 +523,7 @@ class Slice {
 
         // 绘制到画布上，适当偏移中心以重叠融合
         const drawSize = Math.max(width, height) * 0.6;
-        ctx.globalAlpha = 0.7; // 增加透明度让颜色叠加更柔和
+        ctx.globalAlpha = 1; // 增加透明度让颜色叠加更柔和
         ctx.drawImage(this.img, sx, sy, sw, sh, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
         ctx.restore();
     }
@@ -514,13 +533,11 @@ let animationId = null;
 let slices = [];
 
 bgImg.onload = () => {
-    // 1. 原有的 DOM 和 样式逻辑
     if (typeof justSvg !== 'undefined') justSvg.style.display = "none";
     svgcontainer.style.background = `url(${bgImg.src})`;
     svgcontainer.style.backgroundSize = "cover";
     svgcontainer.style.backgroundPosition = "center";
 
-    // 2. 提取颜色并设置 CSS 变量 (保持你原有的逻辑)
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
     tempCanvas.width = 100;
@@ -529,17 +546,14 @@ bgImg.onload = () => {
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
 
     let colors = getDominantColors(imageData);
-    // 设置 CSS 变量
     colors.forEach((col, i) => {
         document.body.style.setProperty(`--color${i + 1}`, col);
         document.body.style.setProperty(`--color${i + 1}-rgba`, col.replace("0.9", "0.3"));
     });
 
-    // 3. 初始化流动背景 Canvas
-    const fluidCanvas = document.getElementById('fluid-canvas'); // 确保 HTML 有此 ID
+    const fluidCanvas = document.querySelector("canvas.canvas");
     const fCtx = fluidCanvas.getContext('2d');
-    
-    // 适配屏幕尺寸
+
     const resize = () => {
         fluidCanvas.width = window.innerWidth;
         fluidCanvas.height = window.innerHeight;
@@ -547,25 +561,22 @@ bgImg.onload = () => {
     window.onresize = resize;
     resize();
 
-    // 创建 4 个切片实例
     slices = [0, 1, 2, 3].map(i => new Slice(bgImg, i, fluidCanvas));
 
-    // 4. 动画循环
     if (animationId) cancelAnimationFrame(animationId);
-    
+
     function animate() {
-        // 使用 screen 混合模式让颜色叠加时产生明亮的流体感
         fCtx.clearRect(0, 0, fluidCanvas.width, fluidCanvas.height);
-        fCtx.globalCompositeOperation = 'screen'; 
-        
+        fCtx.globalCompositeOperation = 'screen';
+
         slices.forEach(slice => {
             slice.update();
             slice.draw();
         });
-        
+
         animationId = requestAnimationFrame(animate);
     }
-    
+
     animate();
 };
 
@@ -589,25 +600,25 @@ function GetLyricsLayout(now, to, data) {
     return res + LYRICS_OFFSET;
 }
 
-function UpdateLyricsLayout(index, data,init = 1) {
-    
+function UpdateLyricsLayout(index, data, init = 1) {
+
     for (let i = 0; i < data.length; i++) {
 
         if (i === index && init) {
             data[i].ele.style.color = "rgba(255,255,255,1)"
-            
-        }else{
+
+        } else {
             data[i].ele.style.color = "rgba(255,255,255,0.2)"
         }
         data[i].ele.style.filter = `blur(${Math.abs(i - index)}px)`
         const position = GetLyricsLayout(index, i, data);
-        
-        let n = (i- index)+1
-        if (n>10){
-            n=0
+
+        let n = (i - index) + 1
+        if (n > 10) {
+            n = 0
         }
         setTimeout(() => {
             data[i].ele.style.transform = `translateY(${position}px)`;
-        },  (n * 70 - n * 10) * init);
+        }, (n * 70 - n * 10) * init);
     }
 }

@@ -15,7 +15,7 @@
         </div>
         <div class="time">
             <p class="start">0:00</p>
-            <p class="name"></p>
+            <p class="name">点击音乐图标选择音频和 lrc 文件</p>
             <p class="end">-0:00</p>
         </div>
         <div class="processbar">
@@ -42,19 +42,18 @@
     </div>
     <div class="rightcontent">
         <div class="lyricscontainer">
-            <div class="lyrics">
-                <div class="item"><p>点击音乐图标选择音频、封面和lrc文件</p></div>
-            </div>
+            <div class="lyrics"></div>
         </div>
     </div>
 
     <!-- <div class="background"></div> -->
-    <canvas id="fluid-canvas"></canvas>
+    <canvas class="canvas"></canvas>
 
     <input type="file" accept="audio/* text/* image/* .lrc" class="audiofile" multiple />
     <audio class="player"></audio>
 
     <script src="./index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
 </body>
 
 </html>
